@@ -2,12 +2,12 @@
 
 CREATE OR REPLACE VIEW v_work_order_form AS
 SELECT
-    b.id AS order_number,          -- считаем id бронирования номером наряда
+    b.id AS order_number,          
     b.created_at::date AS order_date,
-    NULL AS building,              -- если есть справочник корпусов — можно добавить JOIN
-    NULL AS floor,                -- аналогично по этажу
+    NULL AS building,             
+    NULL AS floor,               
     r.room_number AS room_number,
-    r.room_number AS unit_name,    -- «помещение»
+    r.room_number AS unit_name,    
     COUNT(DISTINCT bg.guest_id) AS guests_count,
     COUNT(DISTINCT bp.pet_id) AS pets_count
 FROM bookings b
