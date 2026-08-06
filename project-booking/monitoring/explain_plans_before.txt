@@ -1,1 +1,5 @@
-
+EXPLAIN (ANALYZE, BUFFERS)
+SELECT *
+FROM v_booking_summary
+WHERE checkin_date >= '2024-01-01'
+  AND checkin_date < '2024-02-01';
