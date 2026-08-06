@@ -1,69 +1,91 @@
 1. Расчёт стоимости проживания с учётом скидки
-  
+
 CREATE OR REPLACE FUNCTION fn_calculate_stay_cost(
     p_checkin DATE,
     p_checkout DATE,
-    p_room_category VARCHAR,
-    p_discount_percent NUMERIC
+    p_category_id INT,
+    p_promo_code VARCHAR(50)
 ) RETURNS NUMERIC AS $$
 DECLARE
-    v_price_per_night NUMERIC;
     v_nights INT;
-    v_base_cost NUMERIC;
+    v_base_price NUMERIC;
+    v_discount_percent NUMERIC;
+    v_total NUMERIC;
 BEGIN
-    SELECT price_per_night INTO v_price_per_night
-    FROM rooms
-    WHERE category = p_room_category
-    LIMIT 1;
-
-    IF v_price_per_night IS NULL THEN
-        RAISE EXCEPTION 'Категория номера не найдена';
-    END IF;
-
-    v_nights := (p_checkout - p_checkin);
-    IF v_nights <= 0 THEN
+    IF p_checkout <= p_checkin THEN
         RAISE EXCEPTION 'Дата выезда должна быть позже даты заезда';
     END IF;
 
-    v_base_cost := v_price_per_night * v_nights;
-    RETURN v_base_cost * (1 - p_discount_percent / 100.0);
+    v_nights := (p_checkout - p_checkin);
+
+    SELECT base_price_per_night
+    INTO v_base_price
+    FROM room_categories
+    WHERE id = p_category_id;
+
+
+    IF v_base_price IS NULL THEN
+        RAISE EXCEPTION 'Категория номера с id=% не найдена', p_category_id;
+    END IF;
+
+    v_total := v_nights * v_base_price;
+
+
+    SELECT discount_percent
+    INTO v_discount_percent
+    FROM discounts
+    WHERE promo_code = p_promo_code
+      AND (
+          (valid_from IS NULL AND valid_to IS NULL)
+          OR (p_checkin BETWEEN valid_from AND valid_to)
+      )
+      AND v_nights >= COALESCE(min_stay_nights, 0);
+
+    IF v_discount_percent IS NOT NULL THEN
+        v_total := v_total * (1 - v_discount_percent / 100.0);
+    END IF;
+
+    RETURN ROUND(v_total, 2);
 END;
-$$ LANGUAGE plpgsql;
+$$ LANGUAGE plpgsql STABLE;  
 
 2. Проверка доступности номера на период
-  
+
 CREATE OR REPLACE FUNCTION fn_get_room_availability(
     p_checkin DATE,
     p_checkout DATE,
-    p_category VARCHAR
-) RETURNS SETOF rooms AS $$
-BEGIN
-    RETURN QUERY
-    SELECT r.*
-    FROM rooms r
-    WHERE r.category = p_category
-      AND r.status_id IN (
-          SELECT id FROM room_statuses WHERE code = 'free'
-      )
-      AND NOT EXISTS (
-          SELECT 1
-          FROM bookings b
-          WHERE b.room_id = r.id
-            AND b.checkin_date < p_checkout
-            AND b.checkout_date > p_checkin
-      );
-END;
-$$ LANGUAGE plpgsql;
-
-3. Извлечение промокода из JSON
-CREATE OR REPLACE FUNCTION fn_extract_json_promo_details(
-    p_promo_data JSONB
-) RETURNS TABLE (promo_code VARCHAR, percent_discount NUMERIC) AS $$
+    p_category_id INT
+)
+RETURNS TABLE (
+    room_id INT,
+    room_number VARCHAR,
+    category_code VARCHAR
+) AS $$
 BEGIN
     RETURN QUERY
     SELECT
-        (p_promo_data ->> 'code') AS promo_code,
-        (p_promo_data ->> 'percent_discount')::NUMERIC AS percent_discount
-    WHERE p_promo_data IS NOT NULL;
+        r.id,
+        r.room_number,
+        rc.category_code
+    FROM rooms r
+    JOIN room_categories rc ON r.category_id = rc.id
+    LEFT JOIN bookings b
+        ON r.id = b.room_id
+        AND b.checkin_date < p_checkout
+        AND b.checkout_date > p_checkin
+    WHERE rc.id = p_category_id
+      AND r.is_active = TRUE
+      AND b.id IS NULL;
 END;
-$$ LANGUAGE plpgsql;
+$$ LANGUAGE plpgsql STABLE;
+
+3.  Извлечение промокода из JSON
+CREATE OR REPLACE FUNCTION fn_extract_json_promo_details(promo_data JSONB)
+RETURNS TABLE (promo_code VARCHAR, discount_percent NUMERIC) AS $$
+BEGIN
+    RETURN QUERY
+    SELECT
+        (promo_data->>'promo_code')::VARCHAR,
+        (promo_data->>'discount_percent')::NUMERIC;
+END;
+$$ LANGUAGE plpgsql IMMUTABLE;
