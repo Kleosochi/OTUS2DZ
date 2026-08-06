@@ -120,3 +120,14 @@ CREATE TABLE reports_log (
     parameters JSONB,
     rows_returned INT
 );
+
+
+15. Индексы
+CREATE INDEX idx_bookings_checkin ON bookings(checkin_date);
+CREATE INDEX idx_bookings_checkout ON bookings(checkout_date);
+CREATE INDEX idx_rooms_category ON rooms(category_id);
+CREATE INDEX idx_payments_booking_id ON payments(booking_id);
+CREATE INDEX idx_guests_full_name ON guests(last_name, first_name);
+
+16. Индекс по JSONB для быстрого поиска промокодов
+CREATE INDEX idx_bookings_promo_code ON bookings USING GIN (promo_details);
