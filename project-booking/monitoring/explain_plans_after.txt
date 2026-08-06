@@ -1,1 +1,27 @@
+Удалим индекс
 
+DROP INDEX IF EXISTS idx_payments_booking_id;
+
+Повторяем запрос
+
+EXPLAIN (ANALYZE, BUFFERS)
+SELECT
+    DATE_TRUNC('month', p.payment_date)::date AS report_month,
+    rc.category_code,
+    SUM(b.total_cost) AS gross_revenue,
+    SUM(COALESCE(b.discount_applied, 0)) AS total_discounts,
+    SUM(b.total_cost - COALESCE(b.discount_applied, 0)) AS net_revenue,
+    AVG(b.checkout_date - b.checkin_date) AS avg_nights,
+    COUNT(DISTINCT b.id) AS bookings_count
+FROM payments p
+JOIN bookings b ON p.booking_id = b.id
+JOIN rooms r ON b.room_id = r.id
+JOIN room_categories rc ON r.category_id = rc.id
+GROUP BY
+    report_month,
+    rc.category_code
+ORDER BY report_month DESC, net_revenue DESC;
+
+Вернем индекс
+
+CREATE INDEX idx_payments_booking_id ON payments(booking_id);
