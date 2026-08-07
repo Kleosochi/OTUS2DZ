@@ -131,3 +131,12 @@ CREATE INDEX idx_guests_full_name ON guests(last_name, first_name);
 
 16. Индекс по JSONB для быстрого поиска промокодов
 CREATE INDEX idx_bookings_promo_code ON bookings USING GIN (promo_details);
+
+17. Костыль. Добавляем в bookings внешний ключ на discounts
+ALTER TABLE bookings
+ADD COLUMN discount_id INT,
+ADD CONSTRAINT fk_bookings_discount
+    FOREIGN KEY (discount_id)
+    REFERENCES discounts(id)
+    ON UPDATE CASCADE
+    ON DELETE SET NULL;
