@@ -140,3 +140,22 @@ ADD CONSTRAINT fk_bookings_discount
     REFERENCES discounts(id)
     ON UPDATE CASCADE
     ON DELETE SET NULL;
+
+18. Устранение замечания "Добавить статус бронирования"
+    
+CREATE TYPE booking_status AS ENUM (
+  'confirmed',
+  'cancelled',
+  'pending',
+  'checked_in',
+  'checked_out'
+);
+
+ALTER TABLE bookings
+  ADD COLUMN booking_status booking_status NOT NULL DEFAULT 'confirmed';
+
+19.  Разделить понятия «текущее состояние номера» и «занятость по расписанию»
+
+ALTER TABLE rooms
+  ADD COLUMN current_state VARCHAR(50) NOT NULL DEFAULT 'available';
+
