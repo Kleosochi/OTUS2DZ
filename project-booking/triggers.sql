@@ -28,6 +28,79 @@ AFTER INSERT ON bookings
 FOR EACH ROW
 EXECUTE FUNCTION trg_fn_update_room_status_on_booking();
 
+Устранение замечаний.
+
+DROP TRIGGER IF EXISTS trg_update_room_status_on_booking ON bookings;
+DROP FUNCTION IF EXISTS trg_fn_update_room_status_on_booking();
+
+ALTER TABLE rooms
+  ADD COLUMN current_state VARCHAR(50) NOT NULL DEFAULT 'available';
+
+ALTER TABLE rooms
+  ADD CONSTRAINT chk_current_state
+    CHECK (current_state IN ('available','occupied','cleaning','maintenance','out_of_service'));
+
+CREATE OR REPLACE FUNCTION trg_fn_on_check_in()
+RETURNS TRIGGER AS $$
+BEGIN
+
+  CREATE OR REPLACE FUNCTION set_room_cleaning(p_room_id INT)
+RETURNS VOID AS $$
+BEGIN
+  UPDATE rooms
+  SET current_state = 'cleaning'
+  WHERE room_id = p_room_id;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE OR REPLACE FUNCTION trg_fn_sync_room_on_status_change()
+RETURNS TRIGGER AS $$
+DECLARE
+    v_room_state TEXT;
+BEGIN
+  IF OLD.booking_status IS DISTINCT FROM NEW.booking_status THEN
+    CASE NEW.booking_status
+      WHEN 'checked_in' THEN
+        v_room_state := 'occupied';
+      WHEN 'checked_out' THEN
+        v_room_state := 'cleaning';
+      ELSE
+        -- ничего не делаем для confirmed/cancelled/pending
+        RETURN NEW;
+    END CASE;
+
+    UPDATE rooms
+    SET current_state = v_room_state
+    WHERE room_id = NEW.room_id;
+  END IF;
+
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER trg_sync_room_on_booking_status
+AFTER UPDATE OF booking_status ON bookings
+FOR EACH ROW
+EXECUTE FUNCTION trg_fn_sync_room_on_status_change();
+
+
+  UPDATE rooms
+  SET current_state = 'occupied'
+  WHERE room_id = NEW.room_id;
+
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE OR REPLACE FUNCTION set_room_occupied(p_room_id INT)
+RETURNS VOID AS $$
+BEGIN
+  UPDATE rooms
+  SET current_state = 'occupied'
+  WHERE room_id = p_room_id;
+END;
+$$ LANGUAGE plpgsql;
+
 
 2. логировать изменения оплаты (для аудита и мониторинга)
 CREATE OR REPLACE FUNCTION trg_fn_log_payment_changes()
