@@ -89,3 +89,58 @@ BEGIN
         (promo_data->>'discount_percent')::NUMERIC;
 END;
 $$ LANGUAGE plpgsql IMMUTABLE;
+
+4. Функция поиска свободных номеров на диапазон
+
+CREATE OR REPLACE FUNCTION find_available_rooms(
+  p_check_in  DATE,
+  p_check_out DATE
+)
+RETURNS TABLE (
+  room_id        INT,
+  room_number    VARCHAR,
+  category       VARCHAR,
+  days_available INT
+) AS $$
+BEGIN
+  RETURN QUERY
+  WITH requested_dates AS (
+    SELECT generate_series(p_check_in, p_check_out, INTERVAL '1 day')::date AS d
+  ),
+  blocked_days AS (
+    SELECT
+      u.room_id,
+      d.d AS blocked_date
+    FROM room_unavailability u
+    JOIN requested_dates d ON d.d BETWEEN u.date_from AND u.date_to
+  ),
+  booked_days AS (
+    SELECT
+      b.room_id,
+      d.d AS booked_date
+    FROM bookings b
+    JOIN requested_dates d ON d.d BETWEEN b.check_in_date AND b.check_out_date
+    WHERE b.booking_status IN ('confirmed', 'checked_in')
+  ),
+  occupied_days AS (
+    SELECT room_id, blocked_date AS date_ref FROM blocked_days
+    UNION
+    SELECT room_id, booked_date FROM booked_days
+  ),
+  total_requested_days AS (
+    SELECT COUNT(*) AS cnt FROM requested_dates
+  )
+  SELECT
+    r.room_id,
+    r.room_number,
+    r.category,
+    (SELECT cnt FROM total_requested_days) - COUNT(o.date_ref) AS days_available
+  FROM rooms r
+  LEFT JOIN occupied_days o ON r.room_id = o.room_id
+  GROUP BY r.room_id, r.room_number, r.category
+  HAVING (SELECT cnt FROM total_requested_days) - COUNT(o.date_ref) = (SELECT cnt FROM total_requested_days);
+END;
+$$ LANGUAGE plpgsql;
+
+EXPLAIN (ANALYZE, BUFFERS)
+SELECT * FROM find_available_rooms('2024-10-18', '2024-10-22');
