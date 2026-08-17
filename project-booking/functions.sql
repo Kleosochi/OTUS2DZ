@@ -147,4 +147,44 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+5. Создаём функцию вместо процедуры.
 
+CREATE OR REPLACE FUNCTION fn_create_booking(
+    p_room_id INT,
+    p_checkin_date DATE,
+    p_checkout_date DATE,
+    p_total_cost NUMERIC,
+    p_discount_percent NUMERIC DEFAULT 0,
+    p_promo_details JSONB DEFAULT '{}'::jsonb
+)
+RETURNS INT
+LANGUAGE plpgsql
+AS $$
+DECLARE
+    v_overlap_count INT;
+    v_booking_id INT;
+BEGIN
+    SELECT COUNT(*) INTO v_overlap_count
+    FROM bookings b
+    WHERE b.room_id = p_room_id
+      AND b.booking_status IN ('confirmed', 'checked_in', 'checked_out')
+      AND (b.checkin_date < p_checkout_date)
+      AND (b.checkout_date > p_checkin_date);
+
+    IF v_overlap_count > 0 THEN
+        RAISE EXCEPTION 'Номер уже занят на указанные даты (найдено пересечений: %).', v_overlap_count;
+    END IF;
+
+    INSERT INTO bookings (
+        room_id, checkin_date, checkout_date, total_cost,
+        discount_applied, promo_details, booking_status
+    )
+    VALUES (
+        p_room_id, p_checkin_date, p_checkout_date, p_total_cost,
+        p_discount_percent, p_promo_details, 'confirmed'
+    )
+    RETURNING id INTO v_booking_id;
+
+    RETURN v_booking_id;
+END;
+$$;
