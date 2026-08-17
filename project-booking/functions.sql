@@ -119,7 +119,7 @@ BEGIN
       b.room_id,
       d.d AS booked_date
     FROM bookings b
-    JOIN requested_dates d ON d.d BETWEEN b.check_in_date AND b.check_out_date
+    JOIN requested_dates d ON d.d BETWEEN b.checkin_date AND b.checkout_date
     WHERE b.booking_status IN ('confirmed', 'checked_in')
   ),
   occupied_days AS (
@@ -143,4 +143,4 @@ END;
 $$ LANGUAGE plpgsql;
 
 EXPLAIN (ANALYZE, BUFFERS)
-SELECT * FROM find_available_rooms('2024-10-18', '2024-10-22');
+SELECT * FROM find_available_rooms('2026-08-01', '2026-08-17');
