@@ -3,24 +3,28 @@
 CREATE OR REPLACE VIEW v_booking_summary AS
 SELECT
     b.id AS booking_id,
+    b.room_id,
     r.room_number,
-    rc.category_code AS room_category,
+    rc.category_code,
     b.checkin_date,
     b.checkout_date,
-    COUNT(bg.guest_id) AS total_guests,
-    COUNT(bp.pet_id) AS total_pets,
     b.total_cost,
     b.discount_applied,
-    rs.status_code AS current_room_status
+    b.booking_status,
+    g.first_name,
+    g.last_name,
+    COUNT(bg.*) AS total_guests,
+    COUNT(bp.*) AS total_pets
 FROM bookings b
 JOIN rooms r ON b.room_id = r.id
 JOIN room_categories rc ON r.category_id = rc.id
-LEFT JOIN room_current_state rcs ON r.id = rcs.room_id
-LEFT JOIN room_statuses rs ON rcs.status_id = rs.id
 LEFT JOIN booking_guests bg ON b.id = bg.booking_id
 LEFT JOIN booking_pets bp ON b.id = bp.booking_id
-GROUP BY b.id, r.room_number, rc.category_code, b.checkin_date, b.checkout_date,
-         b.total_cost, b.discount_applied, rs.status_code;
+LEFT JOIN guests g ON bg.guest_id = g.id AND bg.is_primary_guest = TRUE
+GROUP BY
+    b.id, b.room_id, r.room_number, rc.category_code,
+    b.checkin_date, b.checkout_date, b.total_cost, b.discount_applied, b.booking_status,
+    g.first_name, g.last_name;
 
 2. Занятость номеров по дням (агрегация по датам)
 CREATE OR REPLACE VIEW v_room_occupancy AS
