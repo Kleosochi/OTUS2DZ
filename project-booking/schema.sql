@@ -159,3 +159,9 @@ ALTER TABLE bookings
 ALTER TABLE rooms
   ADD COLUMN current_state VARCHAR(50) NOT NULL DEFAULT 'available';
 
+20. Составной индекс
+
+CREATE INDEX idx_bookings_room_status_dates
+    ON bookings (room_id, booking_status, checkin_date, checkout_date);
+
+
