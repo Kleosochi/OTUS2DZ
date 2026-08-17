@@ -176,3 +176,8 @@ CREATE TRIGGER trg_bookings_check_availability
 BEFORE INSERT OR UPDATE ON bookings
 FOR EACH ROW
 EXECUTE FUNCTION trg_check_room_availability();
+
+CREATE TRIGGER trg_bookings_check_availability
+BEFORE INSERT OR UPDATE ON bookings
+FOR EACH ROW
+EXECUTE FUNCTION trg_check_room_availability();
