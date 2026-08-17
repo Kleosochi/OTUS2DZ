@@ -52,32 +52,37 @@ $$ LANGUAGE plpgsql STABLE;
 2. Проверка доступности номера на период
 
 CREATE OR REPLACE FUNCTION fn_get_room_availability(
-    p_checkin DATE,
-    p_checkout DATE,
-    p_category_id INT
+    p_checkin_date DATE,
+    p_checkout_date DATE
 )
 RETURNS TABLE (
     room_id INT,
     room_number VARCHAR,
-    category_code VARCHAR
+    category_code VARCHAR,
+    base_price_per_night NUMERIC
 ) AS $$
 BEGIN
     RETURN QUERY
     SELECT
         r.id,
         r.room_number,
-        rc.category_code
+        rc.category_code,
+        rc.base_price_per_night
     FROM rooms r
     JOIN room_categories rc ON r.category_id = rc.id
-    LEFT JOIN bookings b
-        ON r.id = b.room_id
-        AND b.checkin_date < p_checkout
-        AND b.checkout_date > p_checkin
-    WHERE rc.id = p_category_id
-      AND r.is_active = TRUE
-      AND b.id IS NULL;
+    WHERE r.is_active = TRUE
+      AND NOT EXISTS (
+          SELECT 1
+          FROM bookings b
+          WHERE b.room_id = r.id
+            AND b.booking_status IN ('confirmed', 'checked_in', 'checked_out')
+            AND (
+                (b.checkin_date < p_checkout_date)
+                AND (b.checkout_date > p_checkin_date)
+            )
+      );
 END;
-$$ LANGUAGE plpgsql STABLE;
+$$ LANGUAGE plpgsql;
 
 3.  Извлечение промокода из JSON
 CREATE OR REPLACE FUNCTION fn_extract_json_promo_details(promo_data JSONB)
