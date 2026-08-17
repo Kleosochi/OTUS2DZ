@@ -43,6 +43,13 @@ ALTER TABLE rooms
 CREATE OR REPLACE FUNCTION trg_fn_on_check_in()
 RETURNS TRIGGER AS $$
 BEGIN
+  UPDATE rooms
+  SET current_state = 'occupied'
+  WHERE room_id = NEW.room_id;
+
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
 
   CREATE OR REPLACE FUNCTION set_room_cleaning(p_room_id INT)
 RETURNS VOID AS $$
