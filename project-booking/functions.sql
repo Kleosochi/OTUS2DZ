@@ -147,5 +147,4 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
-EXPLAIN (ANALYZE, BUFFERS)
-SELECT * FROM find_available_rooms('2026-08-01', '2026-08-17');
+
