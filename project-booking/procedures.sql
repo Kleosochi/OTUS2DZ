@@ -2,53 +2,54 @@
 
 CREATE OR REPLACE PROCEDURE sp_create_booking(
     p_room_id INT,
-    p_checkin DATE,
-    p_checkout DATE,
-    p_guest_ids INT[],
-    p_pet_ids INT[]
-) LANGUAGE plpgsql AS $$
+    p_checkin_date DATE,
+    p_checkout_date DATE,
+    p_total_cost NUMERIC,
+    p_discount_percent NUMERIC DEFAULT 0,
+    p_promo_details JSONB DEFAULT '{}'::jsonb,
+    OUT p_booking_id INT
+)
+LANGUAGE plpgsql
+AS $$
 DECLARE
-    v_cost NUMERIC;
-    v_booking_id INT;
-    v_guest INT;      
-    v_pet INT;        
+    v_overlap_count INT;
 BEGIN
-    IF EXISTS (
-        SELECT 1 FROM bookings
-        WHERE room_id = p_room_id
-          AND checkin_date < p_checkout
-          AND checkout_date > p_checkin
-    ) THEN
-        RAISE EXCEPTION 'Номер уже занят на указанный период';
+    -- Проверка на пересечения только по активным броням
+    SELECT COUNT(*) INTO v_overlap_count
+    FROM bookings b
+    WHERE b.room_id = p_room_id
+      AND b.booking_status IN ('confirmed', 'checked_in', 'checked_out')
+      AND (
+          (b.checkin_date < p_checkout_date)
+          AND (b.checkout_date > p_checkin_date)
+      );
+
+    IF v_overlap_count > 0 THEN
+        RAISE EXCEPTION 'Номер уже занят на указанные даты (найдено пересечений: %).', v_overlap_count;
     END IF;
 
-    SELECT SUM(rc.base_price_per_night) * (p_checkout - p_checkin)
-    INTO v_cost
-    FROM rooms r
-    JOIN room_categories rc ON r.category_id = rc.id
-    WHERE r.id = p_room_id;
-
-    IF v_cost IS NULL THEN
-        RAISE EXCEPTION 'Не удалось рассчитать стоимость: номер или категория не найдены';
-    END IF;
-
-    INSERT INTO bookings (room_id, checkin_date, checkout_date, total_cost)
-    VALUES (p_room_id, p_checkin, p_checkout, v_cost)
-    RETURNING id INTO v_booking_id;
-
-
-    FOREACH v_guest IN ARRAY p_guest_ids LOOP
-        INSERT INTO booking_guests (booking_id, guest_id, is_primary_guest)
-        VALUES (v_booking_id, v_guest, FALSE);
-    END LOOP;
-
-
-    FOREACH v_pet IN ARRAY p_pet_ids LOOP
-        INSERT INTO booking_pets (booking_id, pet_id)
-        VALUES (v_booking_id, v_pet);
-    END LOOP;
+    INSERT INTO bookings (
+        room_id,
+        checkin_date,
+        checkout_date,
+        total_cost,
+        discount_applied,
+        promo_details,
+        booking_status
+    )
+    VALUES (
+        p_room_id,
+        p_checkin_date,
+        p_checkout_date,
+        p_total_cost,
+        p_discount_percent,
+        p_promo_details,
+        'confirmed'
+    )
+    RETURNING id INTO p_booking_id;
 END;
 $$;
+
 
 2. Применение скидки к бронированию
 CREATE OR REPLACE PROCEDURE sp_apply_discount(
