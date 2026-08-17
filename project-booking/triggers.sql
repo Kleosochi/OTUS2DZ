@@ -65,7 +65,6 @@ BEGIN
       WHEN 'checked_out' THEN
         v_room_state := 'cleaning';
       ELSE
-        -- ничего не делаем для confirmed/cancelled/pending
         RETURN NEW;
     END CASE;
 
@@ -82,8 +81,6 @@ CREATE TRIGGER trg_sync_room_on_booking_status
 AFTER UPDATE OF booking_status ON bookings
 FOR EACH ROW
 EXECUTE FUNCTION trg_fn_sync_room_on_status_change();
-
-
   UPDATE rooms
   SET current_state = 'occupied'
   WHERE room_id = NEW.room_id;
@@ -139,3 +136,36 @@ CREATE TRIGGER trg_log_payment_changes
 AFTER INSERT OR UPDATE OR DELETE ON payments
 FOR EACH ROW
 EXECUTE FUNCTION trg_fn_log_payment_changes();
+
+3. Защита от двойного бронирования.
+
+CREATE OR REPLACE FUNCTION trg_check_room_availability()
+RETURNS TRIGGER AS $$
+DECLARE
+    v_overlap_count INT;
+BEGIN
+    IF TG_OP = 'INSERT' OR TG_OP = 'UPDATE' THEN
+        SELECT COUNT(*) INTO v_overlap_count
+        FROM bookings b
+        WHERE b.id != NEW.id
+          AND b.room_id = NEW.room_id
+          AND b.booking_status IN ('confirmed', 'checked_in', 'checked_out')
+          AND (
+              (b.checkin_date < NEW.checkout_date)
+              AND (b.checkout_date > NEW.checkin_date)
+          );
+
+        IF v_overlap_count > 0 THEN
+            RAISE EXCEPTION 'Обнаружено пересечение бронирований для номера % на даты % - %.',
+                NEW.room_id, NEW.checkin_date, NEW.checkout_date;
+        END IF;
+    END IF;
+
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER trg_bookings_check_availability
+BEFORE INSERT OR UPDATE ON bookings
+FOR EACH ROW
+EXECUTE FUNCTION trg_check_room_availability();
