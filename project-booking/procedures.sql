@@ -14,7 +14,6 @@ AS $$
 DECLARE
     v_overlap_count INT;
 BEGIN
-    -- Проверка на пересечения только по активным броням
     SELECT COUNT(*) INTO v_overlap_count
     FROM bookings b
     WHERE b.room_id = p_room_id
