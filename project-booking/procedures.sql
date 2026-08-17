@@ -127,3 +127,21 @@ BEGIN
     VALUES (p_booking_id, p_guest_id, p_is_primary);
 END;
 $$;
+
+6. Отмена бронирования
+    
+CREATE OR REPLACE PROCEDURE sp_cancel_booking(
+    p_booking_id INT
+)
+LANGUAGE plpgsql
+AS $$
+BEGIN
+    UPDATE bookings
+    SET booking_status = 'cancelled'
+    WHERE id = p_booking_id;
+
+    IF NOT FOUND THEN
+        RAISE EXCEPTION 'Бронирование с id % не найдено.', p_booking_id;
+    END IF;
+END;
+$$;
