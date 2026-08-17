@@ -10,11 +10,6 @@ CREATE TABLE room_unavailability (
 CREATE INDEX idx_room_unavailability_room_dates
   ON room_unavailability(room_id, date_from, date_to);
 
-INSERT INTO room_unavailability (room_id, date_from, date_to, reason)
-VALUES
-  (1, '2024-10-15', '2024-10-20', 'maintenance'),
-  (3, '2024-11-01', '2024-11-03', 'deep_cleaning');
-
 CREATE OR REPLACE VIEW v_room_occupancy_new AS
 SELECT
   r.id,
