@@ -25,29 +25,33 @@ GROUP BY b.id, r.room_number, rc.category_code, b.checkin_date, b.checkout_date,
 2. Занятость номеров по дням (агрегация по датам)
 CREATE OR REPLACE VIEW v_room_occupancy AS
 SELECT
-    d.day,
     r.id AS room_id,
     r.room_number,
-    rc.category_code,
-    COUNT(DISTINCT bg.guest_id) AS guests_count,
-    COUNT(DISTINCT bp.pet_id) AS pets_count,
-    CASE WHEN rcs.status_id IN (
-            SELECT id FROM room_statuses WHERE status_code IN ('occupied', 'dirty')
-         ) THEN TRUE ELSE FALSE END AS is_occupied
-FROM generate_series(
-        (SELECT MIN(checkin_date) FROM bookings),
-        (SELECT MAX(checkout_date) FROM bookings),
-        INTERVAL '1 day'
-     ) AS d(day)
-CROSS JOIN rooms r
-LEFT JOIN bookings b ON r.id = b.room_id
-    AND d.day >= b.checkin_date AND d.day < b.checkout_date
-LEFT JOIN room_categories rc ON r.category_id = rc.id
-LEFT JOIN room_current_state rcs ON r.id = rcs.room_id
-LEFT JOIN booking_guests bg ON b.id = bg.booking_id
-LEFT JOIN booking_pets bp ON b.id = bp.booking_id
-WHERE r.is_active = TRUE
-GROUP BY d.day, r.id, r.room_number, rc.category_code, rcs.status_id;
+    r.current_state AS physical_state,  -- физическое состояние (уборка, ремонт и т.п.)
+    d.occupation_date,
+    EXISTS (
+        SELECT 1
+        FROM bookings b
+        WHERE b.room_id = r.id
+          AND b.booking_status IN ('confirmed', 'checked_in', 'checked_out')
+          AND d.occupation_date >= b.checkin_date
+          AND d.occupation_date < b.checkout_date
+    ) AS is_occupied,
+    (
+        SELECT b.id
+        FROM bookings b
+        WHERE b.room_id = r.id
+          AND b.booking_status IN ('confirmed', 'checked_in', 'checked_out')
+          AND d.occupation_date >= b.checkin_date
+          AND d.occupation_date < b.checkout_date
+        LIMIT 1
+    ) AS active_booking_id
+FROM rooms r
+CROSS JOIN generate_series(
+    CURRENT_DATE - INTERVAL '30 days',
+    CURRENT_DATE + INTERVAL '90 days',
+    INTERVAL '1 day'
+) AS d(occupation_date);
 
 3. Детализация оплат с расшифровкой скидок
 CREATE OR REPLACE VIEW v_payments_with_discounts AS
