@@ -1,5 +1,4 @@
-1. Создание бронирования с валидацией
-
+1. Создание бронирования с проверкой пересечений (впоследствии создана функция вместо этой процедуры)
 CREATE OR REPLACE PROCEDURE sp_create_booking(
     p_room_id INT,
     p_checkin_date DATE,
