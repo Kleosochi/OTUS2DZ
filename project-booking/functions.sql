@@ -147,7 +147,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
-5. Создаём функцию вместо процедуры.
+5. Создаём функцию проверки пересечений дат.
 
 CREATE OR REPLACE FUNCTION fn_create_booking(
     p_room_id INT,
