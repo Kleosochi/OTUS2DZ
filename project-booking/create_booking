@@ -1,4 +1,4 @@
-1. Создаем категорию
+ 1. Создаём категорию
 
 INSERT INTO room_categories (category_code, description, base_price_per_night)
 SELECT 'STANDARD', 'Стандартный номер', 5000.00
@@ -6,38 +6,29 @@ WHERE NOT EXISTS (
     SELECT 1 FROM room_categories WHERE category_code = 'STANDARD'
 );
 
-2. Создаем номер
+ 2. Создаём номер
 
+WITH cat AS (
+    SELECT id FROM room_categories WHERE category_code = 'STANDARD' LIMIT 1
+)
 INSERT INTO rooms (room_number, category_id, max_occupancy, allow_pets, is_active)
-SELECT '101', id, 2, FALSE, TRUE
-FROM room_categories
-WHERE category_code = 'STANDARD'
-AND NOT EXISTS (
+SELECT '101', c.id, 2, FALSE, TRUE
+FROM cat c
+WHERE NOT EXISTS (
     SELECT 1 FROM rooms WHERE room_number = '101'
 );
 
-3. Проверим наличие номера
-SELECT id, room_number FROM rooms;
+ 3. Получаем реальный room_id
 
-4. Создадим бронь
-
-SELECT fn_create_booking(1, '2025-10-01', '2025-10-03', 10000) AS booking_id;
-
-Нет id=1
-
-ERROR:  INSERT или UPDATE в таблице "bookings" нарушает ограничение внешнего ключа "bookings_room_id_fkey"
-Ключ (room_id)=(1) отсутствует в таблице "rooms". 
-
-ОШИБКА:  INSERT или UPDATE в таблице "bookings" нарушает ограничение внешнего ключа "bookings_room_id_fkey"
-SQL state: 23503
-Detail: Ключ (room_id)=(1) отсутствует в таблице "rooms".
-Context: SQL-оператор: "INSERT INTO bookings (
-        room_id, checkin_date, checkout_date, total_cost,
-        discount_applied, promo_details, booking_status
-    )
-    VALUES (
-        p_room_id, p_checkin_date, p_checkout_date, p_total_cost,
-        p_discount_percent, p_promo_details, 'confirmed'
-    )
-    RETURNING id"
-функция PL/pgSQL fn_create_booking(integer,date,date,numeric,numeric,jsonb), строка 17, оператор SQL-оператор
+DO $$
+DECLARE
+    v_room_id INT;
+    v_first_booking_id INT;
+BEGIN
+    SELECT id INTO v_room_id FROM rooms WHERE room_number = '101';
+    RAISE NOTICE 'Используем room_id = % для теста', v_room_id;
+    SELECT fn_create_booking(v_room_id, '2025-10-01', '2025-10-05', 20000)
+    INTO v_first_booking_id;
+    RAISE NOTICE 'Первая бронь создана: id = %', v_first_booking_id;
+    SELECT fn_create_booking(v_room_id, '2025-10-03', '2025-10-07', 20000);
+END $$;
